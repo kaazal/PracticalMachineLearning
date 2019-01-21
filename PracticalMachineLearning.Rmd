@@ -1,0 +1,109 @@
+---
+title: "Practical Machine Learning"
+author: "Kaazal"
+date: "January 21, 2019"
+output: html_document
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(rattle)
+library(randomForest)
+library(gbm) 
+library(tree)
+library(e1071)
+```
+## Data Sourcing and Analysis
+```{r Analysis}
+trainUrl <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+testUrl <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+#reading the data from csv file
+training <- read.csv(trainUrl,header=TRUE)
+testing <- read.csv(testUrl,header=TRUE)
+dim(training)
+dim(testing)
+str(training)
+str(testing)
+```
+## Cleaning Data
+Removing insignificant columns in train data
+```{r Cleaning, echo=TRUE}
+ColToRemove <- which(colSums(is.na(training) |training=="")>0.9*dim(training)[1]) 
+training <- training[,-ColToRemove]
+trainingData <- training[,-c(1:7)]
+dim(trainingData)
+#After cleaning the traindata we have 19622 rows and 53 columns
+ColToRemove <- which(colSums(is.na(testing) |testing=="")>0.9*dim(testing)[1]) 
+testing <- testing[,-ColToRemove]
+testingData <- testing[,-c(1:7)]
+dim(testingData)
+#After cleaning the testdata,we have 20 rows and 53 columns
+```
+## Correlation Plot 
+In the Correlation Graph the correlated predictors are those with dark color intersection 
+```{r Correlation, echo=TRUE}
+library(corrplot)
+correl <- cor(trainingData[,-53])
+corrplot(correl, order= "FPC", method="color",type="upper", t1.cex=0.8, t1.col=rgb(1, 1, 1))
+```
+## Data Slicing -training data and testing data
+```{r Slicing, echo=TRUE}
+set.seed(12345)
+library(caret)
+library(rpart)
+inTrain <- createDataPartition(trainingData$classe,p=0.70,list=FALSE)
+trainData <- trainingData[inTrain,]
+testData <- trainingData[-inTrain,]
+dim(testData)
+dim(trainData)
+```
+## Models for predicting the data
+Classification Tree
+```{r ClassificationTree, echo=TRUE}
+library(rpart)
+trControl <- trainControl(method="cv", number=5)
+ct <- train(classe~., data=trainData, method="rpart", trControl=trControl)
+fancyRpartPlot(ct$finalModel)
+print(ct)
+plot(ct)
+#predicting
+ct_predict <- predict(ct,testData)
+#accuracy
+matrixct <- confusionMatrix(ct_predict,testData$classe)
+matrixct$overall[1]
+matrixct$table
+#Accuracy from classification tree model is 0.49,prediction ability is too low
+```
+Random Forest
+```{r RandomForest, echo=TRUE}
+ControlRF <- trainControl(method="cv",number = 3, verboseIter=FALSE)
+rf <- train(classe~.,trainData, method = "rf", trControl = ControlRF)
+plot(rf)
+#predicting
+rf_predict <- predict(rf,testData)
+#accuracy
+matrixrf <- confusionMatrix(rf_predict,testData$classe)
+matrixrf$overall[1]
+matrixrf$table
+plot(rf$finalModel)
+#Accuracy from RandomForest model is 0.99,prediction ability is high. This model is more accurate compare to the other models.
+```
+Gradient Boosting Method 
+```{r gbm, echo=TRUE}
+library(gbm)
+trControl <- trainControl(method="cv", number=5)
+gbm <- train(classe~., data=trainData, method="gbm", trControl=trControl)
+plot(gbm)
+print(gbm)
+#predicting
+gbm_predict <- predict(gbm,testData)
+#accuracy
+matrixgbm <- confusionMatrix(gbm_predict,testData$classe)
+matrixgbm$overall[1]
+matrixgbm$table
+#Accuracy from the Gradient Boosting Method is o.96,high predicting capacity. But Random Forest is more accurate.
+```
+##Conclusion
+Final prediction with testing Data
+```{r final, echo=TRUE}
+final_predict <- predict(rf,testingData)
+```
